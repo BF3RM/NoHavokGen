@@ -71,8 +71,6 @@ def CreateInitialPartitionStruct(havokName):
 	partitionGuid = str(uuid.uuid4())
 	gen['PartitionGuid'] = partitionGuid
 
-	## TODO: change partition name
-
 	subWorldDataGuid = str(uuid.uuid4())
 	descriptorGuid = str(uuid.uuid4())
 	registryGuid = str(uuid.uuid4())
@@ -179,6 +177,9 @@ def ProcessMember(gen, levelTransforms, transformIndex, memberData):
 			scale = 1.0
 						
 			if not validScales:
+				# print('No valid scale for asset: ' + memberData['MemberType']['InstanceGuid'] +', ignoring instance')
+				if not (memberData['MemberType']['InstanceGuid'] in invalidScalesFound):
+					invalidScalesFound[memberData['MemberType']['InstanceGuid']] = {}
 				# If the asset doesnt have any valid scale we can't substitute it with another scale, so we skip adding the ReferenceObjectData
 				# of this instance and its reference to EBX
 				transformIndex += 1
@@ -288,15 +289,20 @@ for i, havokName in enumerate(Util.HavokNames.names):
 	with open(path, 'r') as f:
 		content = json.loads(f.read())
 	f.close()
+	print('Processing file: ' + havokName + '...')
 
 	gen = ProcessLevel(content, havokName)
 
-	print('Processed file: ' + havokName)
+	
 	if invalidScalesFound:
 		print('Found invalid scales in the following assets:')
 
 	for x, y in invalidScalesFound.items():
-		print(x, y.keys()) 
+		if not y:
+			print(x + ' does not have any valid scale')
+		else:
+			print(x, y.keys()) 
+	print('File processed!')
 
 	# NoHavok/Levels/XP5_001/Rush
 	bundleName = 'NoHavok/' + pathArray[0] + '/' + pathArray[1] + '/' + pathArray[2]
