@@ -51,17 +51,18 @@ def GetPartitionEBX(partitionGuid):
 
 def GetValidScales(partition, instanceGuid):
 	staticModelEntityData = partition['Instances'][instanceGuid]
-	physicsData = partition['Instances'][staticModelEntityData['PhysicsData']['InstanceGuid']]
-
 	scales = {}
 
-	for entry in physicsData['ScaledAssets']:
-		havokAsset = partition['Instances'][entry['InstanceGuid']]
-		name = havokAsset['Name']
-		
-		# check if actually exists (some collisions dont exist, probably due to optimizations)
-		if name.lower() in Util.PhysicsContent.physicsContent:
-			scales[str(havokAsset['Scale'])] = True
+	if 'PhysicsData' in staticModelEntityData and staticModelEntityData['PhysicsData'] and 'InstanceGuid' in staticModelEntityData['PhysicsData'] and staticModelEntityData['PhysicsData']['InstanceGuid'] and staticModelEntityData['PhysicsData']['InstanceGuid'] in partition['Instances']:
+		physicsData = partition['Instances'][staticModelEntityData['PhysicsData']['InstanceGuid']]
+
+		for entry in physicsData['ScaledAssets']:
+			havokAsset = partition['Instances'][entry['InstanceGuid']]
+			name = havokAsset['Name']
+			
+			# check if actually exists (some collisions dont exist, probably due to optimizations)
+			if name.lower() in Util.PhysicsContent.physicsContent:
+				scales[str(havokAsset['Scale'])] = True
 
 	return scales
 
@@ -116,9 +117,8 @@ def ProcessMember(gen, levelTransforms, transformIndex, memberData):
 	partition = GetPartitionEBX(memberData['MemberType']['PartitionGuid'])
 	if not partition:
 		error('Couldn\'t find partition with guid ' + memberData['MemberType']['PartitionGuid'])
+
 	ogBlueprint = partition['Instances'][partition['PrimaryInstanceGuid']]
-
-
 
 	# objectBlueprint = copy.deepcopy(objectBlueprintTemp)     #
 	# objectBlueprintGuid = str(uuid.uuid4())     #
@@ -141,6 +141,8 @@ def ProcessMember(gen, levelTransforms, transformIndex, memberData):
 
 	# if memberData['NetworkIdRange']['First'] != 0xffffffff:     #
 	#   objectBlueprint['NeedNetworkId'] = True     #
+	
+	validScales = GetValidScales(partition, memberData['MemberType']['InstanceGuid'])
 
 	for i in range(memberData['InstanceCount']):
 		referenceObjectDataGuid = str(uuid.uuid4())
@@ -169,34 +171,32 @@ def ProcessMember(gen, levelTransforms, transformIndex, memberData):
 			referenceObjectData['CastSunShadowEnable'] = memberData['InstanceCastSunShadow'][i]
 
 		referenceObjectData['IndexInBlueprint'] = len(wpd['Objects']) + 30001
-		ref = {
-			'PartitionGuid': gen['PartitionGuid'],
-			'InstanceGuid': referenceObjectDataGuid
-			}
-		gen['Instances'][referenceObjectDataGuid] = referenceObjectData
 
-		rc['ReferenceObjectRegistry'].append(ref)
-		wpd['Objects'].append(ref)
 
 		if i <= len(memberData['InstanceTransforms']) - 1:
 			referenceObjectData['BlueprintTransform'] = memberData['InstanceTransforms'][i]
 		else:
 			scale = 1.0
-			
-			validScales = GetValidScales(partition, memberData['MemberType']['InstanceGuid'])
-			
+						
+			if not validScales:
+				# If the asset doesnt have any valid scale we can't substitute it with another scale, so we skip adding the ReferenceObjectData
+				# of this instance and its reference to EBX
+				transformIndex += 1
+				continue
+
 			if i <= len(memberData['InstanceScale']) - 1:
 				targetScale = memberData['InstanceScale'][i]
+				
 				if str(targetScale) in validScales:
 					scale = targetScale
 				else:
-					# target scale is not valid
+					# Target scale is not valid
 					if memberData['MemberType']['InstanceGuid'] in invalidScalesFound:
 						invalidScalesFound[memberData['MemberType']['InstanceGuid']][targetScale] = True
 					else:
 						invalidScalesFound[memberData['MemberType']['InstanceGuid']] = {targetScale: True}
 
-					# find closest valid scale
+					# Find closest valid scale
 					for validScale in validScales.keys():
 						if abs(float(validScale) - targetScale) < abs(scale - targetScale):
 							scale = float(validScale)
@@ -216,6 +216,14 @@ def ProcessMember(gen, levelTransforms, transformIndex, memberData):
 			referenceObjectData['BlueprintTransform']['trans']['y'] = quatAndPos[1][1]
 			referenceObjectData['BlueprintTransform']['trans']['z'] = quatAndPos[1][2]
 			transformIndex += 1
+		
+		ref = {
+			'PartitionGuid': gen['PartitionGuid'],
+			'InstanceGuid': referenceObjectDataGuid
+			}
+		gen['Instances'][referenceObjectDataGuid] = referenceObjectData
+		rc['ReferenceObjectRegistry'].append(ref)
+		wpd['Objects'].append(ref)
 
 	return transformIndex
 
