@@ -1,5 +1,7 @@
 Venice-EBX-JSON
-ebx_json
+intermediate
 sb
+mods/
+rime/
 *__pycache__
 commands.txt
