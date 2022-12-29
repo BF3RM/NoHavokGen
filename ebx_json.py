@@ -108,7 +108,7 @@ def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 	gen['Instances'] = new_dict
 	return gen
 
-def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir):
+def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir):
 	# add objectblueprint
 
 	partition = GetPartitionEBX(member_data['MemberType']['PartitionGuid'], dump_dir)
@@ -118,38 +118,45 @@ def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, mem
 
 	original_blueprint = partition['Instances'][partition['PrimaryInstanceGuid']]
 
-	# objectBlueprint = copy.deepcopy(objectBlueprintTemp)     #
-	# objectBlueprintGuid = str(uuid.uuid4())     #
-	# objectBlueprint['Object']['PartitionGuid'] = memberData['MemberType']['PartitionGuid']     #
-	# objectBlueprint['Object']['InstanceGuid'] = memberData['MemberType']['InstanceGuid']     #
-
-	# objectBlueprint['Name'] = original_blueprint['Name']     #
-
-	# gen['Instances'][objectBlueprintGuid] = objectBlueprint     #
-
 	swd = gen['Instances'][gen['PrimaryInstanceGuid']]
 	rc = gen['Instances'][swd['RegistryContainer']['InstanceGuid']]
-	
-	# rc['BlueprintRegistry'].append({     #
-	#   'PartitionGuid': gen['PartitionGuid'],     #
-	#   'InstanceGuid': objectBlueprintGuid     #
-	#   })     #
 	wprod = gen['Instances'][swd['Objects'][0]['InstanceGuid']]
 	wpd = gen['Instances'][wprod['Blueprint']['InstanceGuid']]
-
-	# if memberData['NetworkIdRange']['First'] != 0xffffffff:     #
-	#   objectBlueprint['NeedNetworkId'] = True     #
 	
+	needs_network_id = member_data['NetworkIdRange']['First'] != 4294967295 # 0xffffffff
+
+	if needs_network_id:
+		# Needs network id, so we need to clone the blueprint
+		object_blueprint = copy.deepcopy(objectBlueprintTemp)
+		object_blueprint['NeedNetworkId'] = True
+		object_blueprint_guid = str(uuid.uuid3(og_partition_uuid, original_blueprint['Name']))
+		object_blueprint['Object']['PartitionGuid'] = member_data['MemberType']['PartitionGuid']
+		object_blueprint['Object']['InstanceGuid'] = member_data['MemberType']['InstanceGuid']
+
+		object_blueprint['Name'] = original_blueprint['Name']
+
+		gen['Instances'][object_blueprint_guid] = object_blueprint
+
+		rc['BlueprintRegistry'].append({
+			'PartitionGuid': gen['PartitionGuid'],
+			'InstanceGuid': object_blueprint_guid
+			})
+
 	valid_scales = GetValidScales(partition, member_data['MemberType']['InstanceGuid'])
 
 	for i in range(member_data['InstanceCount']):
-		reference_object_data_guid = str(uuid.uuid3(uuid.UUID(og_partition_guid), member_data['MemberType']['InstanceGuid'] + str(i)))
+		reference_object_data_guid = str(uuid.uuid3(og_partition_uuid, member_data['MemberType']['InstanceGuid'] + str(i)))
 
 		reference_object_data = copy.deepcopy(referenceObjectDataTemp)
-		# referenceObjectData['Blueprint']['InstanceGuid'] = objectBlueprintGuid    #
-		# referenceObjectData['Blueprint']['PartitionGuid'] = gen['PartitionGuid']    #
-		reference_object_data['Blueprint']['InstanceGuid'] = partition['PrimaryInstanceGuid']
-		reference_object_data['Blueprint']['PartitionGuid'] = partition['PartitionGuid']
+
+		if needs_network_id:
+			# use cloned blueprint
+			reference_object_data['Blueprint']['InstanceGuid'] = object_blueprint_guid
+			reference_object_data['Blueprint']['PartitionGuid'] = gen['PartitionGuid']
+		else:
+			# use original blueprint
+			reference_object_data['Blueprint']['InstanceGuid'] = partition['PrimaryInstanceGuid']
+			reference_object_data['Blueprint']['PartitionGuid'] = partition['PartitionGuid']
 
 		if i <= len(member_data['InstanceObjectVariation']) - 1 and member_data['InstanceObjectVariation'][i] != 0:
 			variation_hash = member_data['InstanceObjectVariation'][i]
@@ -169,7 +176,6 @@ def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, mem
 			reference_object_data['CastSunShadowEnable'] = member_data['InstanceCastSunShadow'][i]
 
 		reference_object_data['IndexInBlueprint'] = len(wpd['Objects']) + 30001
-
 
 		if i <= len(member_data['InstanceTransforms']) - 1:
 			reference_object_data['BlueprintTransform'] = member_data['InstanceTransforms'][i]
@@ -192,10 +198,10 @@ def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, mem
 					scale = target_scale
 				else:
 					# Target scale is not valid
-					if member_data['MemberType']['InstanceGuid'] in invalid_scales_found:
-						invalid_scales_found[member_data['MemberType']['InstanceGuid']][target_scale] = True
-					else:
-						invalid_scales_found[member_data['MemberType']['InstanceGuid']] = {target_scale: True}
+					if not member_data['MemberType']['InstanceGuid'] in invalid_scales_found:
+						invalid_scales_found[member_data['MemberType']['InstanceGuid']] = {}
+					
+					invalid_scales_found[member_data['MemberType']['InstanceGuid']][target_scale] = True
 
 					# Find closest valid scale
 					for valid_scale in valid_scales.keys():
@@ -217,7 +223,7 @@ def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, mem
 			reference_object_data['BlueprintTransform']['trans']['y'] = quat_and_pos[1][1]
 			reference_object_data['BlueprintTransform']['trans']['z'] = quat_and_pos[1][2]
 			transform_index += 1
-		
+	
 		ref = {
 			'PartitionGuid': gen['PartitionGuid'],
 			'InstanceGuid': reference_object_data_guid
@@ -248,7 +254,7 @@ def ProcessLevel(content, havok_name, invalid_scales_found, dump_dir):
 			level_transforms = util.HavokTransforms.havokTransforms[havok_name.lower()]
 			# print(havokName)
 			for _, member_data in enumerate(obj['MemberDatas']):
-				transform_index = ProcessMember(gen, partition_guid, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir)
+				transform_index = ProcessMember(gen, uuid.UUID(partition_guid), level_transforms, transform_index, member_data, invalid_scales_found, dump_dir)
 			break
 
 	return gen
@@ -283,7 +289,7 @@ def generate_ebx_json(dump_dir: str):
 			if not y:
 				print(x + ' does not have any valid scale')
 			else:
-				print(x, y.keys()) 
+				print("{} has the following invalid scales: {}".format(x, y.keys()))
 		print('File processed!')
 
 		# NoHavok/XP5_001/Rush
