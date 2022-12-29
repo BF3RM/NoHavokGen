@@ -30,7 +30,7 @@
     "InstanceGuid": "BlueprintGuid"
   },
   "ObjectVariation": null,
-  "StreamRealm": "StreamRealm_None",
+  "StreamRealm": 0,
   "CastSunShadowEnable": true,
   "Excluded": false
 }
