@@ -65,16 +65,16 @@ def GetValidScales(partition, instance_guid):
 
 	return scales
 
-def CreateInitialPartitionStruct():
+def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 	gen = copy.deepcopy(subWorldDataTemp)
-	partition_guid = str(uuid.uuid4())
+	partition_guid = str(uuid.uuid3(og_partition_uuid, 'partition'))
 	gen['PartitionGuid'] = partition_guid
 
-	sub_world_data_guid = str(uuid.uuid4())
-	descriptor_guid = str(uuid.uuid4())
-	registry_guid = str(uuid.uuid4())
-	world_part_data_guid = str(uuid.uuid4())
-	world_part_ROD_guid = str(uuid.uuid4())
+	sub_world_data_guid = str(uuid.uuid3(og_partition_uuid, 'subworlddata'))
+	descriptor_guid = str(uuid.uuid3(og_partition_uuid, 'descriptor'))
+	registry_guid = str(uuid.uuid3(og_partition_uuid, 'registry'))
+	world_part_data_guid = str(uuid.uuid3(og_partition_uuid, 'worldpartdata'))
+	world_part_ROD_guid = str(uuid.uuid3(og_partition_uuid, 'referenceobjectdata'))
 	gen['PrimaryInstanceGuid'] = sub_world_data_guid
 
 	# recreate the dict with the generated guids as keys
@@ -108,7 +108,7 @@ def CreateInitialPartitionStruct():
 	gen['Instances'] = new_dict
 	return gen
 
-def ProcessMember(gen, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir):
+def ProcessMember(gen, og_partition_guid, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir):
 	# add objectblueprint
 
 	partition = GetPartitionEBX(member_data['MemberType']['PartitionGuid'], dump_dir)
@@ -123,7 +123,7 @@ def ProcessMember(gen, level_transforms, transform_index, member_data, invalid_s
 	# objectBlueprint['Object']['PartitionGuid'] = memberData['MemberType']['PartitionGuid']     #
 	# objectBlueprint['Object']['InstanceGuid'] = memberData['MemberType']['InstanceGuid']     #
 
-	# objectBlueprint['Name'] = ogBlueprint['Name']     #
+	# objectBlueprint['Name'] = original_blueprint['Name']     #
 
 	# gen['Instances'][objectBlueprintGuid] = objectBlueprint     #
 
@@ -143,7 +143,7 @@ def ProcessMember(gen, level_transforms, transform_index, member_data, invalid_s
 	valid_scales = GetValidScales(partition, member_data['MemberType']['InstanceGuid'])
 
 	for i in range(member_data['InstanceCount']):
-		reference_object_data_guid = str(uuid.uuid4())
+		reference_object_data_guid = str(uuid.uuid3(uuid.UUID(og_partition_guid), member_data['MemberType']['InstanceGuid'] + str(i)))
 
 		reference_object_data = copy.deepcopy(referenceObjectDataTemp)
 		# referenceObjectData['Blueprint']['InstanceGuid'] = objectBlueprintGuid    #
@@ -231,7 +231,8 @@ def ProcessMember(gen, level_transforms, transform_index, member_data, invalid_s
 def ProcessLevel(content, havok_name, invalid_scales_found, dump_dir):
 
 	# Create structure
-	gen = CreateInitialPartitionStruct()
+	partition_guid = content['PartitionGuid']
+	gen = CreateInitialPartitionStruct(uuid.UUID(partition_guid))
 
 	transform_index = 0
 
@@ -246,8 +247,8 @@ def ProcessLevel(content, havok_name, invalid_scales_found, dump_dir):
 			# print('Found StaticModelGroupEntityData')
 			level_transforms = util.HavokTransforms.havokTransforms[havok_name.lower()]
 			# print(havokName)
-			for _, memberData in enumerate(obj['MemberDatas']):
-				transform_index = ProcessMember(gen, level_transforms, transform_index, memberData, invalid_scales_found, dump_dir)
+			for _, member_data in enumerate(obj['MemberDatas']):
+				transform_index = ProcessMember(gen, partition_guid, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir)
 			break
 
 	return gen
