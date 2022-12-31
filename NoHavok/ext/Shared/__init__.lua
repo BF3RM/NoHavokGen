@@ -150,9 +150,7 @@ Events:Subscribe('Partition:Loaded', function(p_Partition)
 				print('Found StaticModelGroupEntityData, excluding')
 				local s_StaticModelGroup = StaticModelGroupEntityData(l_Object)
 				s_StaticModelGroup:MakeWritable()
-				s_StaticModelGroup.enabled = false
 				s_StaticModelGroup.memberDatas:clear()
-				s_StaticModelGroup.physicsData = nil
 			end
 		end
 

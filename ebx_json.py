@@ -40,7 +40,7 @@ def GetPartitionEBX(partitionGuid, dump_dir):
 	path = os.path.join(dump_dir, ebx_file_path)
 
 	if os.path.exists(path) is False:
-		print('Could not find Venice EBX Json dump')
+		print('Error: Could not find Venice EBX Json dump')
 		# continue
 
 	with open(path, 'r') as f:
@@ -123,7 +123,8 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 	wprod = gen['Instances'][swd['Objects'][0]['InstanceGuid']]
 	wpd = gen['Instances'][wprod['Blueprint']['InstanceGuid']]
 	
-	needs_network_id = member_data['NetworkIdRange']['First'] != 4294967295 # 0xffffffff
+	# needs_network_id = member_data['NetworkIdRange']['First'] != 4294967295 # 0xffffffff
+	needs_network_id = False
 
 	if needs_network_id:
 		# Needs network id, so we need to clone the blueprint

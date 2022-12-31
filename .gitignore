@@ -5,3 +5,4 @@ mods/
 rime/
 *__pycache__
 commands.txt
+ebx_dump/**
