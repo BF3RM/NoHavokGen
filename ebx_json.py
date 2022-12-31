@@ -176,7 +176,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 		if i <= len(member_data['InstanceCastSunShadow']) - 1:
 			reference_object_data['CastSunShadowEnable'] = member_data['InstanceCastSunShadow'][i]
 
-		reference_object_data['IndexInBlueprint'] = len(wpd['Objects']) + 30001
+		reference_object_data['IndexInBlueprint'] = len(wpd['Objects'])
 
 		if i <= len(member_data['InstanceTransforms']) - 1:
 			reference_object_data['BlueprintTransform'] = member_data['InstanceTransforms'][i]
