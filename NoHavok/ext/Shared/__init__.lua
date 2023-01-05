@@ -3,7 +3,8 @@
 ---@field CLIENT_TIMEOUT number
 Config = require "__shared/Config"
 
-BUNDLE_PREFIX = 'NoHavok'
+local BUNDLE_PREFIX = 'NoHavok'
+local m_LazyLoadedCount = 0
 
 local print = function(p_Message, p_IsWarning)
 	if Config.LOGGER_ENABLED or p_IsWarning then
@@ -15,45 +16,12 @@ local print = function(p_Message, p_IsWarning)
 	end
 end
 
-local m_LazyLoadedCount = 0
-
----Finds and returns the bundle name associated with the level and gamemode (@p_Path) loaded in the 
----case that there is a gamemode map file, and in case the map file does not exist or the path does 
----not have an entry it returns @p_Path
----@param p_Path string
----@return string
-local function GetBundlePath(p_Path)
-	local _, s_BundlesMapJson = pcall(require, '__shared/Levels/BundlesMap.lua')
-	
-	if not s_BundlesMapJson then
-		return p_Path
-	end
-
-	local s_BundlesMap = json.decode(s_BundlesMapJson)
-
-	-- Replace spaces in case of custom gamemodes with spaces in their names
-	p_Path = p_Path:gsub(' ', '_')
-	
-	
-	if s_BundlesMap and s_BundlesMap[p_Path] then
-		print('Found custom bundle ' .. s_BundlesMap[p_Path] .. ' for gamemode ' .. p_Path .. ' in bundle map file')
-		return s_BundlesMap[p_Path]
-	end
-
-	return p_Path
-end
-
-Hooks:Install('ResourceManager:LoadBundles', 100, function(p_Hook, p_Bundles, p_Compartment)
-	print(p_Compartment)
-	print(p_Bundles[1])
-end)
-
 -- nº 1 in calling order
 Events:Subscribe('Level:LoadResources', function(p_LevelName, p_GameMode, p_IsDedicatedServer)
-	print("-----Loading resources")
+	print("Loading resources")
 
 	local s_SuperBundleName = string.gsub(p_LevelName, 'Levels', BUNDLE_PREFIX)
-	print("MountSuperBundle: " .. s_SuperBundleName)
+	print("Mounting SuperBundle: " .. s_SuperBundleName)
 	ResourceManager:MountSuperBundle(s_SuperBundleName)
 end)
 
@@ -74,15 +42,15 @@ local function _GetHighestIndexInPartition(s_Partition)
 end
 
 ---Patches the level, adding a SubWorldReferenceObjectData to the level that references the SubWorld in the custom bundle
-local function _PatchLevel(p_LevelName)
-	local s_Data = LevelData(ResourceManager:SearchForDataContainer(SharedUtils:GetLevelName()))
+local function _PatchLevel(p_LevelPath)
+	local s_Data = LevelData(ResourceManager:SearchForDataContainer(p_LevelPath))
 	s_Data:MakeWritable()
 
 	local s_SWROD = SubWorldReferenceObjectData(Guid('73756277-6f72-6c64-6e6f-006861766f6b')) -- subworld no havok
 
-	local s_Path = GetBundlePath(p_LevelName:gsub(".*/", "") .. '/' .. p_LevelName:gsub(".*/", ""))
+	local s_LevelName = p_LevelPath:gsub(".*/", "")
 	
-	s_SWROD.bundleName = BUNDLE_PREFIX .. '/' .. s_Path
+	s_SWROD.bundleName = BUNDLE_PREFIX .. '/' .. s_LevelName .. '/' .. s_LevelName
 	s_SWROD.blueprintTransform = LinearTransform()
 	s_SWROD.blueprint = nil
 	s_SWROD.objectVariation = nil
@@ -124,11 +92,11 @@ local function _PatchLevel(p_LevelName)
 end
 
 Events:Subscribe('Partition:Loaded', function(p_Partition)
-	local s_LevelName = SharedUtils:GetLevelName()
+	local s_LevelPath = SharedUtils:GetLevelName()
 
-	if not s_LevelName then return end
+	if not s_LevelPath then return end
 
-	if p_Partition.name == s_LevelName:lower() then
+	if p_Partition.name == s_LevelPath:lower() then
 		print('Patching level')
 
 		local s_LevelData = LevelData(p_Partition.primaryInstance)
@@ -142,7 +110,7 @@ Events:Subscribe('Partition:Loaded', function(p_Partition)
 				
 				l_Object.blueprint:RegisterLoadHandlerOnce(function (p_Instance)
 					m_LazyLoadedCount = m_LazyLoadedCount - 1
-					if m_LazyLoadedCount == 0 then _PatchLevel(s_LevelName) end
+					if m_LazyLoadedCount == 0 then _PatchLevel(s_LevelPath) end
 				end)
 			end
 
@@ -154,33 +122,26 @@ Events:Subscribe('Partition:Loaded', function(p_Partition)
 			end
 		end
 
-		if m_LazyLoadedCount == 0 then _PatchLevel(s_LevelName) end
+		if m_LazyLoadedCount == 0 then _PatchLevel(s_LevelPath) end
 	end
-end)
-
--- Remove all DataContainer references and reset vars
-Events:Subscribe('Level:Destroy', function()
-	-- TODO: remove all custom objects from level registry and leveldata if next round is
-	-- the same map but a different save, once that is implemented. If it's a different map
-	-- there is no need to clear anything, as the leveldata will be unloaded and a new one loaded
 end)
 
 -- Increase timeout 
 ResourceManager:RegisterInstanceLoadHandler(Guid('C4DCACFF-ED8F-BC87-F647-0BC8ACE0D9B4'), Guid('B479A8FA-67FF-8825-9421-B31DE95B551A'), function(p_Instance)
 	p_Instance = ClientSettings(p_Instance)
 	p_Instance:MakeWritable()
-	p_Instance.loadedTimeout = Config.CLIENT_TIMEOUT
-	p_Instance.loadingTimeout = Config.CLIENT_TIMEOUT
-	p_Instance.ingameTimeout = Config.CLIENT_TIMEOUT
+	p_Instance.loadedTimeout = math.max(Config.LOADING_TIMEOUT, p_Instance.loadedTimeout or 0)
+	p_Instance.loadingTimeout = math.max(Config.LOADING_TIMEOUT, p_Instance.loadingTimeout or 0)
+	p_Instance.ingameTimeout = math.max(Config.LOADING_TIMEOUT, p_Instance.ingameTimeout or 0)
 	print("Changed ClientSettings")
 end)
 
 ResourceManager:RegisterInstanceLoadHandler(Guid('C4DCACFF-ED8F-BC87-F647-0BC8ACE0D9B4'), Guid('818334B3-CEA6-FC3F-B524-4A0FED28CA35'), function(p_Instance)
 	p_Instance = ServerSettings(p_Instance)
 	p_Instance:MakeWritable()
-	p_Instance.loadingTimeout = Config.CLIENT_TIMEOUT
-	p_Instance.ingameTimeout = Config.CLIENT_TIMEOUT
-	p_Instance.timeoutTime = Config.CLIENT_TIMEOUT
+	p_Instance.loadingTimeout = math.max(Config.LOADING_TIMEOUT, p_Instance.loadingTimeout or 0)
+	p_Instance.ingameTimeout = math.max(Config.LOADING_TIMEOUT, p_Instance.ingameTimeout or 0)
+	p_Instance.timeoutTime = math.max(Config.LOADING_TIMEOUT, p_Instance.timeoutTime or 0)
 	print("Changed ServerSettings")
 end)
 
