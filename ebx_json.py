@@ -3,6 +3,7 @@ import json
 import os
 import copy
 import util
+import re
 
 from templates import subWorldDataTemp, objectBlueprintTemp, referenceObjectDataTemp
 
@@ -48,7 +49,7 @@ def GetPartitionEBX(partitionGuid, dump_dir):
 
 	return partition_ebx
 
-def GetValidScales(partition, instance_guid):
+def GetValidScales(partition, instance_guid, level_path):
 	static_model_entity_data = partition['Instances'][instance_guid]
 	scales = {}
 
@@ -60,9 +61,12 @@ def GetValidScales(partition, instance_guid):
 			name = havok_asset['Name']
 			
 			# check if actually exists (some collisions dont exist, probably due to optimizations)
-			if name.lower() in util.PhysicsContent.physicsContent:
-				scales[str(havok_asset['Scale'])] = True
-
+			if level_path in util.PhysicsContents:
+				levelstuff = util.PhysicsContents[level_path]
+				if name.lower() in levelstuff:
+					scales[str(havok_asset['Scale'])] = True
+			else:
+				print('Error: Could not find level name in pyhsicsContents table. This should never happen. Level name: ' + level_path)
 	return scales
 
 def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
@@ -108,7 +112,7 @@ def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 	gen['Instances'] = new_dict
 	return gen
 
-def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir):
+def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir, level_path):
 	# add objectblueprint
 
 	partition = GetPartitionEBX(member_data['MemberType']['PartitionGuid'], dump_dir)
@@ -143,7 +147,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 			'InstanceGuid': object_blueprint_guid
 			})
 
-	valid_scales = GetValidScales(partition, member_data['MemberType']['InstanceGuid'])
+	valid_scales = GetValidScales(partition, member_data['MemberType']['InstanceGuid'], level_path)
 
 	for i in range(member_data['InstanceCount']):
 		reference_object_data_guid = str(uuid.uuid3(og_partition_uuid, member_data['MemberType']['InstanceGuid'] + str(i)))
@@ -194,7 +198,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 
 			if i <= len(member_data['InstanceScale']) - 1:
 				target_scale = member_data['InstanceScale'][i]
-				
+
 				if str(target_scale) in valid_scales:
 					scale = target_scale
 				else:
@@ -208,7 +212,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 					for valid_scale in valid_scales.keys():
 						if abs(float(valid_scale) - target_scale) < abs(scale - target_scale):
 							scale = float(valid_scale)
-
+		
 			quat_and_pos = level_transforms[transform_index]
 			rot = QuaternionToRotation(quat_and_pos[0])
 			reference_object_data['BlueprintTransform']['right']['x'] = rot[0][0] * scale
@@ -236,6 +240,12 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 	return transform_index
 
 def ProcessLevel(content, havok_name, invalid_scales_found, dump_dir):
+	matches = re.search(r"(.*)/staticmodelgroup_physics_win32", havok_name.lower())
+	if matches == None:
+		print('Error: Could not get level name from havok group name')
+		return	
+	# example: levels/mp_subway/rush
+	level_path = matches.group(1).lower()
 
 	# Create structure
 	partition_guid = content['PartitionGuid']
@@ -251,13 +261,11 @@ def ProcessLevel(content, havok_name, invalid_scales_found, dump_dir):
 		obj_instance_guid = obj_guids['InstanceGuid']
 		obj = instances.get(obj_instance_guid)
 		if obj['$type'] == 'StaticModelGroupEntityData':
-			# print('Found StaticModelGroupEntityData')
 			level_transforms = util.HavokTransforms.havokTransforms[havok_name.lower()]
-			# print(havokName)
-			for _, member_data in enumerate(obj['MemberDatas']):
-				transform_index = ProcessMember(gen, uuid.UUID(partition_guid), level_transforms, transform_index, member_data, invalid_scales_found, dump_dir)
-			break
 
+			for _, member_data in enumerate(obj['MemberDatas']):
+				transform_index = ProcessMember(gen, uuid.UUID(partition_guid), level_transforms, transform_index, member_data, invalid_scales_found, dump_dir, level_path)
+			break
 	return gen
 
 def generate_ebx_json(dump_dir: str):
