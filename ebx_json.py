@@ -319,7 +319,7 @@ def generate_ebx_json(dump_dir: str):
 		gen['Name'] = partition_name
 		subworld_data = gen['Instances'][gen['PrimaryInstanceGuid']]
 		# subworld_data['Name'] = pathArray[2] + '/Havok (StaticModelGroup)'
-		subworld_data['Name'] = 'NoHavok'
+		subworld_data['Name'] = 'NoHavok_' + path_array[2]
 
 		gen_JSON = json.dumps(gen, indent = 2)
 
