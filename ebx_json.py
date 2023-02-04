@@ -5,7 +5,7 @@ import copy
 import util
 import re
 
-from templates import subWorldDataTemp, objectBlueprintTemp, referenceObjectDataTemp
+from templates import subWorldDataTemp, objectBlueprintTemp, referenceObjectDataTemp, worldPartDataTemp, worldPartReferenceObjectDataTemp
 
 INTERMEDIATE_FOLDER_NAME = 'intermediate'
 EBX_JSON_FOLDER_NAME = 'ebx_json'
@@ -77,8 +77,6 @@ def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 	sub_world_data_guid = str(uuid.uuid3(og_partition_uuid, 'subworlddata'))
 	descriptor_guid = str(uuid.uuid3(og_partition_uuid, 'descriptor'))
 	registry_guid = str(uuid.uuid3(og_partition_uuid, 'registry'))
-	world_part_data_guid = str(uuid.uuid3(og_partition_uuid, 'worldpartdata'))
-	world_part_ROD_guid = str(uuid.uuid3(og_partition_uuid, 'referenceobjectdata'))
 	gen['PrimaryInstanceGuid'] = sub_world_data_guid
 
 	# recreate the dict with the generated guids as keys
@@ -86,8 +84,6 @@ def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 	new_dict[sub_world_data_guid] = gen['Instances']['SubWorldDataGuid']
 	new_dict[descriptor_guid] = gen['Instances']['DescriptorGuid']
 	new_dict[registry_guid] = gen['Instances']['RegistryGuid']
-	new_dict[world_part_data_guid] = gen['Instances']['WorldPartDataGuid']
-	new_dict[world_part_ROD_guid] = gen['Instances']['WorldPartRODGuid']
 
 	new_dict[sub_world_data_guid]['Descriptor']['InstanceGuid'] = descriptor_guid
 	new_dict[sub_world_data_guid]['Descriptor']['PartitionGuid'] = partition_guid
@@ -96,24 +92,12 @@ def CreateInitialPartitionStruct(og_partition_uuid: uuid.UUID):
 
 	new_dict[registry_guid]['BlueprintRegistry'][0]['PartitionGuid'] = partition_guid
 	new_dict[registry_guid]['BlueprintRegistry'][0]['InstanceGuid'] = sub_world_data_guid
-	new_dict[registry_guid]['BlueprintRegistry'][1]['PartitionGuid'] = partition_guid
-	new_dict[registry_guid]['BlueprintRegistry'][1]['InstanceGuid'] = world_part_data_guid
-
-	new_dict[world_part_ROD_guid]['Blueprint']['PartitionGuid'] = partition_guid
-	new_dict[world_part_ROD_guid]['Blueprint']['InstanceGuid'] = world_part_data_guid
-
-	new_dict[sub_world_data_guid]['Objects'][0]['PartitionGuid'] = partition_guid
-	new_dict[sub_world_data_guid]['Objects'][0]['InstanceGuid'] = world_part_ROD_guid
-	new_dict[registry_guid]['ReferenceObjectRegistry'][0]['PartitionGuid'] = partition_guid
-	new_dict[registry_guid]['ReferenceObjectRegistry'][0]['InstanceGuid'] = world_part_ROD_guid
-
-	new_dict[world_part_data_guid]['Name'] = 'StaticModelGroupEntityData'
 
 	gen['Instances'] = new_dict
 	return gen
 
 def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform_index, member_data, invalid_scales_found, dump_dir, level_path):
-	# add objectblueprint
+	# Add objectblueprint
 
 	partition = GetPartitionEBX(member_data['MemberType']['PartitionGuid'], dump_dir)
 	if not partition:
@@ -122,11 +106,40 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 
 	original_blueprint = partition['Instances'][partition['PrimaryInstanceGuid']]
 
-	swd = gen['Instances'][gen['PrimaryInstanceGuid']]
-	rc = gen['Instances'][swd['RegistryContainer']['InstanceGuid']]
-	wprod = gen['Instances'][swd['Objects'][0]['InstanceGuid']]
-	wpd = gen['Instances'][wprod['Blueprint']['InstanceGuid']]
+	subworld_data = gen['Instances'][gen['PrimaryInstanceGuid']]
+	registry_container = gen['Instances'][subworld_data['RegistryContainer']['InstanceGuid']]
+
+	# Generatey WorldPartData and WorldPartReferenceObjectData for this member type, to hold all instances of the blueprint in it
+	world_part_ROD = copy.deepcopy(worldPartReferenceObjectDataTemp)
+	world_part_data = copy.deepcopy(worldPartDataTemp)
+	world_part_data_guid = str(uuid.uuid3(og_partition_uuid, original_blueprint['Name'] + '_worldpartdata'))
+	world_part_ROD_guid = str(uuid.uuid3(og_partition_uuid, original_blueprint['Name'] + '_referenceobjectdata'))
+	world_part_data['Name'] = original_blueprint['Name'] + '_Group'
+	# Add them to the ebx
+	gen['Instances'][world_part_ROD_guid] = world_part_ROD
+	gen['Instances'][world_part_data_guid] = world_part_data
 	
+	# Add to registry
+	registry_container['ReferenceObjectRegistry'].append({
+		'PartitionGuid': gen['PartitionGuid'],
+		'InstanceGuid': world_part_ROD_guid
+	})
+	registry_container['BlueprintRegistry'].append({
+		'PartitionGuid': gen['PartitionGuid'],
+		'InstanceGuid': world_part_data_guid
+	})
+	# Reference WorldPartData in WorldPartROD
+	world_part_ROD['Blueprint'] = {
+		'PartitionGuid': gen['PartitionGuid'],
+		'InstanceGuid': world_part_data_guid
+	}
+	# Reference WorldPartROD in SubWorldData
+	world_part_ROD['IndexInBlueprint'] = len(subworld_data['Objects'])
+	subworld_data['Objects'].append({
+		'PartitionGuid': gen['PartitionGuid'],
+		'InstanceGuid': world_part_ROD_guid
+	})
+
 	# needs_network_id = member_data['NetworkIdRange']['First'] != 4294967295 # 0xffffffff
 	needs_network_id = False
 
@@ -142,10 +155,10 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 
 		gen['Instances'][object_blueprint_guid] = object_blueprint
 
-		rc['BlueprintRegistry'].append({
+		registry_container['BlueprintRegistry'].append({
 			'PartitionGuid': gen['PartitionGuid'],
 			'InstanceGuid': object_blueprint_guid
-			})
+		})
 
 	valid_scales = GetValidScales(partition, member_data['MemberType']['InstanceGuid'], level_path)
 
@@ -171,7 +184,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 				reference_object_data['ObjectVariation'] = {
 					'PartitionGuid': variation[0],
 					'InstanceGuid': variation[1]
-					}
+				}
 			# else:
 			#   print('Found variation hash that is not on the variation map: ' + str(variationHash))
 
@@ -180,7 +193,7 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 		if i <= len(member_data['InstanceCastSunShadow']) - 1:
 			reference_object_data['CastSunShadowEnable'] = member_data['InstanceCastSunShadow'][i]
 
-		reference_object_data['IndexInBlueprint'] = len(wpd['Objects'])
+		reference_object_data['IndexInBlueprint'] = len(world_part_data['Objects'])
 
 		if i <= len(member_data['InstanceTransforms']) - 1:
 			reference_object_data['BlueprintTransform'] = member_data['InstanceTransforms'][i]
@@ -234,8 +247,8 @@ def ProcessMember(gen, og_partition_uuid: uuid.UUID, level_transforms, transform
 			'InstanceGuid': reference_object_data_guid
 			}
 		gen['Instances'][reference_object_data_guid] = reference_object_data
-		rc['ReferenceObjectRegistry'].append(ref)
-		wpd['Objects'].append(ref)
+		registry_container['ReferenceObjectRegistry'].append(ref)
+		world_part_data['Objects'].append(ref)
 
 	return transform_index
 
@@ -289,7 +302,6 @@ def generate_ebx_json(dump_dir: str):
 		print('Processing file: ' + havok_name + '...')
 
 		gen = ProcessLevel(content, havok_name, invalid_scales_found, dump_dir)
-
 		
 		if invalid_scales_found:
 			print('Found invalid scales in the following assets:')
@@ -305,9 +317,9 @@ def generate_ebx_json(dump_dir: str):
 		bundle_name = 'NoHavok/' + path_array[1] + '/' + path_array[2]
 		partition_name = bundle_name.lower()
 		gen['Name'] = partition_name
-		swd = gen['Instances'][gen['PrimaryInstanceGuid']]
-		# swd['Name'] = pathArray[2] + '/Havok (StaticModelGroup)'
-		swd['Name'] = 'NoHavok'
+		subworld_data = gen['Instances'][gen['PrimaryInstanceGuid']]
+		# subworld_data['Name'] = pathArray[2] + '/Havok (StaticModelGroup)'
+		subworld_data['Name'] = 'NoHavok'
 
 		gen_JSON = json.dumps(gen, indent = 2)
 

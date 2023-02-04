@@ -1,0 +1,16 @@
+{
+  "$type": "WorldPartData",
+  "Name": "WorldPartData_Name",
+  "PropertyConnections": [],
+  "LinkConnections": [],
+  "EventConnections": [],
+  "Descriptor": null,
+  "NeedNetworkId": false,
+  "InterfaceHasConnections": false,
+  "AlwaysCreateEntityBusClient": false,
+  "AlwaysCreateEntityBusServer": false,
+  "Objects": [],
+  "HackToSolveRealTimeTweakingIssue": "00000000-0000-0000-0000-000000000000",
+  "UseDeferredEntityCreation": false,
+  "Enabled": true
+}

@@ -17,12 +17,7 @@
       "InterfaceHasConnections": false,
       "AlwaysCreateEntityBusClient": false,
       "AlwaysCreateEntityBusServer": false,
-      "Objects": [
-        {
-          "PartitionGuid": "PartitionGuid",
-          "InstanceGuid": "WorldPartRODGuid"
-        }
-      ],
+      "Objects": [],
       "RegistryContainer": {
         "PartitionGuid": "PartitionGuid",
         "InstanceGuid": "RegistryGuid"
@@ -48,70 +43,9 @@
         {
           "PartitionGuid": "PartitionGuid",
           "InstanceGuid": "SubWorldDataGuid"
-        },
-        {
-          "PartitionGuid": "PartitionGuid",
-          "InstanceGuid": "WorldPartDataGuid"
         }
       ],
-      "ReferenceObjectRegistry": [
-        {
-          "PartitionGuid": "PartitionGuid",
-          "InstanceGuid": "WorldPartRODGuid"
-        }
-      ]
-    },
-    "WorldPartRODGuid": {
-      "$type": "WorldPartReferenceObjectData",
-      "IndexInBlueprint": 3000,
-      "IsEventConnectionTarget": 3,
-      "IsPropertyConnectionTarget": 3,
-      "BlueprintTransform": {
-        "right": {
-          "x": 1.0,
-          "y": 0.0,
-          "z": 0.0
-        },
-        "up": {
-          "x": 0.0,
-          "y": 1.0,
-          "z": 0.0
-        },
-        "forward": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 1.0
-        },
-        "trans": {
-          "x": 0.0,
-          "y": 0.0,
-          "z": 0.0
-        }
-      },
-      "Blueprint": {
-        "PartitionGuid": "PartitionGuid",
-        "InstanceGuid": "WorldPartDataGuid"
-      },
-      "ObjectVariation": null,
-      "StreamRealm": 0,
-      "CastSunShadowEnable": true,
-      "Excluded": false
-    },
-    "WorldPartDataGuid": {
-      "$type": "WorldPartData",
-      "Name": "Levels/XP5_002/XP5_002/StaticModelGroup_Physics_Win32",
-      "PropertyConnections": [],
-      "LinkConnections": [],
-      "EventConnections": [],
-      "Descriptor": null,
-      "NeedNetworkId": false,
-      "InterfaceHasConnections": false,
-      "AlwaysCreateEntityBusClient": false,
-      "AlwaysCreateEntityBusServer": false,
-      "Objects": [],
-      "HackToSolveRealTimeTweakingIssue": "00000000-0000-0000-0000-000000000000",
-      "UseDeferredEntityCreation": false,
-      "Enabled": true
+      "ReferenceObjectRegistry": []
     }
   }
 }
