@@ -1,0 +1,4 @@
+[submodule "Venice-EBX-JSON"]
+	path = Venice-EBX-JSON
+	url = https://github.com/VeniceUnleashed/Venice-EBX-JSON
+	branch = master

@@ -6,7 +6,7 @@ import bundles
 import mod_generator
 import rime_downloader
 
-DEFAULT_EBX_DUMP_FOLDER = "ebx_dump"
+DEFAULT_EBX_DUMP_FOLDER = "Venice-EBX-JSON"
 MOD_NAME = "NoHavok"
 
 if __name__ == "__main__":
