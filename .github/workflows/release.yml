@@ -12,6 +12,10 @@ jobs:
         repo: 'BF3RM/NoHavokGen'
         file: 'nohavok.zip'
         token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Unzip file
+      run: unzip nohavok.zip
+    - name: Delete zip file
+      run: rm nohavok.zip
     - name: Publish to VUMM
       uses: BF3RM/vumm-action@v1
       env:
