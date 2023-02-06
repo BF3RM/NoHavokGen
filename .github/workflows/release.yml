@@ -1,0 +1,18 @@
+on:
+  release:
+    types: [published]
+jobs:
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Fetch Github Release Asset
+      uses: dsaltares/fetch-gh-release-asset@1.1.0
+      with:
+        repo: 'BF3RM/NoHavokGen'
+        file: 'nohavok.zip'
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Publish to VUMM
+      uses: BF3RM/vumm-action@v1
+      env:
+        VUMM_TOKEN: ${{ secrets.VUMM_TOKEN }}
