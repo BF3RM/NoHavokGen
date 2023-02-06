@@ -13,10 +13,12 @@ jobs:
         file: 'nohavok.zip'
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Unzip file
-      run: unzip nohavok.zip
+      run: unzip nohavok.zip -d ./nohavok
     - name: Delete zip file
       run: rm nohavok.zip
     - name: Publish to VUMM
       uses: BF3RM/vumm-action@v1
+      with:
+        workdir: "./nohavok"
       env:
         VUMM_TOKEN: ${{ secrets.VUMM_TOKEN }}
